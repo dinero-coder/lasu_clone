@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="Css/livechat.css">
+</head>
+<body>
+<div class="live-chat-demo">
+    <h1>Simple Live Chat with User ID</h1>
+    
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>Live Chat Room</h2>
+            <div class="user-info">
+                <span id="currentUserId" class="userid">User ID: Not Set</span>
+                <button id="changeUserBtn" class="changeuser">Change User</button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="system-message">
+                Welcome to the chat! Set your user ID to start chatting.
+            </div>
+        </div>
+        
+        <div class="chat-input-section">
+            <div class="user-setup" id="userSetup">
+                <h3>Set Your User Identity</h3>
+                <div class="user-options">
+                    <div class="user-option">
+                        <input type="radio" id="randomUser" name="userType" value="random" checked>
+                        <label for="randomUser">Random User</label>
+                    </div>
+                    <div class="user-option">
+                        <input type="radio" id="customUser" name="userType" value="custom">
+                        <label for="customUser">Custom User</label>
+                    </div>
+                </div>
+                <div class="user-inputs">
+                    <div id="customUserInput" style="display: none;">
+                        <input type="text" id="customUserName" placeholder="Enter your name" maxlength="20">
+                        <input type="text" id="customUserId" placeholder="Enter user ID" maxlength="10">
+                    </div>
+                </div>
+                <button id="setUserBtn">Start Chatting</button>
+            </div>
+            
+            <div class="message-input" id="messageInput" style="display: none;">
+                <div class="input-group">
+                    <input type="text" id="messageText" placeholder="Type your message..." maxlength="800" class="grp">
+                    <button id="sendMessageBtn">Send</button>
+                </div>
+                <div class="chat-controls">
+                    <button id="clearChatBtn">Clear Chat</button>
+                    <button id="simulateUsersBtn">Simulate Other Users</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="online-users">
+            <h3>Online Users</h3>
+            <div id="onlineUsersList" class="users-list">
+                <div class="no-users">No users online</div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+  class LiveChat {
+    constructor() {
+        this.currentUser = null;
+        this.messages = [];
+        this.onlineUsers = new Set();
+        this.simulationInterval = null;
+        
+        this.initializeElements();
+        this.initializeEventListeners();
+        this.loadFromStorage();
+    }
+    
+    initializeElements() {
+        // User setup elements
+        this.userTypeRadios = document.querySelectorAll('input[name="userType"]');
+        this.customUserInput = document.getElementById('customUserInput');
+        this.customUserName = document.getElementById('customUserName');
+        this.customUserId = document.getElementById('customUserId');
+        this.setUserBtn = document.getElementById('setUserBtn');
+        this.changeUserBtn = document.getElementById('changeUserBtn');
+        this.currentUserId = document.getElementById('currentUserId');
+        
+        // Chat elements
+        this.chatMessages = document.getElementById('chatMessages');
+        this.userSetup = document.getElementById('userSetup');
+        this.messageInput = document.getElementById('messageInput');
+        this.messageText = document.getElementById('messageText');
+        this.sendMessageBtn = document.getElementById('sendMessageBtn');
+        this.clearChatBtn = document.getElementById('clearChatBtn');
+        this.simulateUsersBtn = document.getElementById('simulateUsersBtn');
+        this.onlineUsersList = document.getElementById('onlineUsersList');
+    }
+    
+    initializeEventListeners() {
+        // User type toggle
+        this.userTypeRadios.forEach(radio => {
+            radio.addEventListener('change', () => this.toggleUserInput());
+        });
+        
+        // Set user
+        this.setUserBtn.addEventListener('click', () => this.setCurrentUser());
+        this.changeUserBtn.addEventListener('click', () => this.showUserSetup());
+        
+        // Message sending
+        this.sendMessageBtn.addEventListener('click', () => this.sendMessage());
+        this.messageText.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.sendMessage();
+        });
+        
+        // Chat controls
+        this.clearChatBtn.addEventListener('click', () => this.clearChat());
+        this.simulateUsersBtn.addEventListener('click', () => this.toggleUserSimulation());
+    }
+    
+    toggleUserInput() {
+        const userType = document.querySelector('input[name="userType"]:checked').value;
+        this.customUserInput.style.display = userType === 'custom' ? 'flex' : 'none';
+    }
+    
+    setCurrentUser() {
+        const userType = document.querySelector('input[name="userType"]:checked').value;
+        
+        if (userType === 'random') {
+            this.currentUser = this.generateRandomUser();
+        } else {
+            const name = this.customUserName.value.trim();
+            const id = this.customUserId.value.trim();
+            
+            if (!name || !id) {
+                alert('Please enter both name and user ID');
+                return;
+            }
+            
+            this.currentUser = { name, id: id.toUpperCase() };
+        }
+        
+        this.currentUserId.textContent = `User ID: ${this.currentUser.id}`;
+        this.addOnlineUser(this.currentUser);
+        this.showChatInterface();
+        this.addSystemMessage(`${this.currentUser.name} joined the chat`);
+        this.saveToStorage();
+    }
+    
+    generateRandomUser() {
+        const names = ['Alex', 'Sam', 'Jordan', 'Taylor', 'Casey', 'Morgan', 'Riley', 'Avery'];
+        const adjectives = ['Swift', 'Bright', 'Cool', 'Smart', 'Fast', 'Brave', 'Wise'];
+        
+        const name = `${names[Math.floor(Math.random() * names.length)]} ${adjectives[Math.floor(Math.random() * adjectives.length)]}`;
+        const id = 'USER' + Math.floor(1000 + Math.random() * 9000);
+        
+        return { name, id };
+    }
+    
+    showChatInterface() {
+        this.userSetup.style.display = 'none';
+        this.messageInput.style.display = 'block';
+        this.messageText.focus();
+    }
+    
+    showUserSetup() {
+        this.userSetup.style.display = 'block';
+        this.messageInput.style.display = 'none';
+        this.currentUser = null;
+        this.currentUserId.textContent = 'User ID: Not Set';
+    }
+    
+    sendMessage() {
+        const content = this.messageText.value.trim();
+        if (!content || !this.currentUser) return;
+        
+        const message = {
+            user: this.currentUser,
+            content,
+            timestamp: new Date(),
+            type: 'user'
+        };
+        
+        this.addMessage(message);
+        this.messageText.value = '';
+        this.saveToStorage();
+        
+        // Simulate responses if simulation is active
+        if (this.simulationInterval) {
+            this.simulateResponse();
+        }
+    }
+    
+    addMessage(message) {
+        this.messages.push(message);
+        this.renderMessage(message);
+        
+        // Auto-scroll to bottom
+        this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+    }
+    
+    renderMessage(message) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${message.type === 'system' ? 'system-message' : 
+            message.user.id === this.currentUser?.id ? 'user-message' : 'other-message'}`;
+        
+        if (message.type === 'system') {
+            messageDiv.innerHTML = `<div class="message-content">${message.content}</div>`;
+        } else {
+            messageDiv.innerHTML = `
+                <div class="message-header">${message.user.name} (${message.user.id})</div>
+                <div class="message-content">${message.content}</div>
+                <div class="message-time">${this.formatTime(message.timestamp)}</div>
+            `;
+        }
+        
+        this.chatMessages.appendChild(messageDiv);
+    }
+    
+    addSystemMessage(content) {
+        const message = {
+            content,
+            timestamp: new Date(),
+            type: 'system'
+        };
+        this.addMessage(message);
+    }
+    
+    formatTime(date) {
+        return date.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+        });
+    }
+    
+    addOnlineUser(user) {
+        this.onlineUsers.add(user.id);
+        this.renderOnlineUsers();
+    }
+    
+    removeOnlineUser(userId) {
+        this.onlineUsers.delete(userId);
+        this.renderOnlineUsers();
+    }
+    
+    renderOnlineUsers() {
+        this.onlineUsersList.innerHTML = '';
+        
+        if (this.onlineUsers.size === 0) {
+            this.onlineUsersList.innerHTML = '<div class="no-users">No users online</div>';
+            return;
+        }
+        
+        this.onlineUsers.forEach(userId => {
+            const userBadge = document.createElement('div');
+            userBadge.className = `user-badge ${userId === this.currentUser?.id ? 'current-user' : ''}`;
+            userBadge.textContent = userId;
+            this.onlineUsersList.appendChild(userBadge);
+        });
+    }
+    
+    simulateResponse() {
+        if (Math.random() > 0.6) { // 40% chance of response
+            setTimeout(() => {
+                const botUsers = [
+                    { name: 'ChatBot', id: 'BOT001' },
+                    { name: 'Helper', id: 'BOT002' },
+                    { name: 'Assistant', id: 'BOT003' }
+                ];
+                
+                const responses = [
+                    'Interesting point!',
+                    'I agree with that.',
+                    'Can you tell me more?',
+                    'That makes sense.',
+                    'Thanks for sharing!',
+                    'What do others think?',
+                    'Great discussion!',
+                    'I have a similar experience.'
+                ];
+                
+                const bot = botUsers[Math.floor(Math.random() * botUsers.length)];
+                const response = responses[Math.floor(Math.random() * responses.length)];
+                
+                if (!this.onlineUsers.has(bot.id)) {
+                    this.addOnlineUser(bot);
+                }
+                
+                const message = {
+                    user: bot,
+                    content: response,
+                    timestamp: new Date(),
+                    type: 'user'
+                };
+                
+                this.addMessage(message);
+                this.saveToStorage();
+            }, 1000 + Math.random() * 3000);
+        }
+    }
+    
+    toggleUserSimulation() {
+        if (this.simulationInterval) {
+            clearInterval(this.simulationInterval);
+            this.simulationInterval = null;
+            this.simulateUsersBtn.textContent = 'Simulate Other Users';
+            this.addSystemMessage('User simulation stopped');
+        } else {
+            this.simulationInterval = setInterval(() => {
+                if (Math.random() > 0.7) { // 30% chance to add random user
+                    const randomUser = this.generateRandomUser();
+                    this.addOnlineUser(randomUser);
+                    this.addSystemMessage(`${randomUser.name} joined the chat`);
+                }
+            }, 5000);
+            
+            this.simulateUsersBtn.textContent = 'Stop Simulation';
+            this.addSystemMessage('User simulation started - other users may join and respond');
+        }
+    }
+    
+    clearChat() {
+        if (confirm('Are you sure you want to clear all messages?')) {
+            this.messages = this.messages.filter(msg => msg.type === 'system');
+            this.chatMessages.innerHTML = '';
+            this.messages.forEach(msg => this.renderMessage(msg));
+            this.saveToStorage();
+        }
+    }
+    
+    saveToStorage() {
+        const chatData = {
+            messages: this.messages,
+            onlineUsers: Array.from(this.onlineUsers),
+            currentUser: this.currentUser
+        };
+        localStorage.setItem('liveChatData', JSON.stringify(chatData));
+    }
+    
+    loadFromStorage() {
+        const saved = localStorage.getItem('liveChatData');
+        if (saved) {
+            try {
+                const chatData = JSON.parse(saved);
+                this.messages = chatData.messages || [];
+                this.onlineUsers = new Set(chatData.onlineUsers || []);
+                this.currentUser = chatData.currentUser || null;
+                
+                if (this.currentUser) {
+                    this.currentUserId.textContent = `User ID: ${this.currentUser.id}`;
+                    this.showChatInterface();
+                }
+                
+                // Render saved messages
+                this.chatMessages.innerHTML = '';
+                this.messages.forEach(msg => this.renderMessage(msg));
+                this.renderOnlineUsers();
+            } catch (error) {
+                console.error('Error loading chat data:', error);
+            }
+        }
+    }
+}
+
+// Initialize the chat when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    new LiveChat();
+});
+
+</script>
+</body>
+</html>
